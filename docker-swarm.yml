@@ -1,0 +1,35 @@
+- hosts: masters:workers
+  become: true
+  tasks:
+    - name: Install EPEL repo for CentOS
+      yum:
+        name: https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm
+        state: present
+      when: ansible_distribution == 'CentOS'
+    - name: Install python-pip
+      package:
+        name: python3-pip
+        state: present
+    - name: Install docker-py module
+      pip:
+        name: docker-py 
+- hosts: masters
+  become: true
+  tasks:
+    - name: create swarm cluster
+      docker_swarm:
+        state: present
+        advertise_addr: "{{ hostvars['docker-swarm-node-01']['ansible_all_ipv4_addresses'][0] }}"
+      run_once: true
+    - name: get swarm cluster join token
+      shell: docker swarm join-token -q worker
+      register: swarm_join_token
+- hosts: workers
+  become: true
+  tasks:
+    - name: join existing cluster
+      docker_swarm:
+        state: join
+        advertise_addr: "{{ hostvars['docker-swarm-node-01']['ansible_all_ipv4_addresses'][0] }}"
+        join_token: "{{ hostvars['docker-swarm-node-01']['swarm_join_token']['stdout'] }}"
+        remote_addrs: "{{ hostvars['docker-swarm-node-01']['ansible_all_ipv4_addresses'][0] }}:2377"

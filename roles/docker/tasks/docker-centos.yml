@@ -1,0 +1,21 @@
+---
+- name: Install docker dependenices via yum.
+  yum:
+    name:
+      #- yum-utils   #skipped as we are going to use get_url instead of yum-repository-add command
+      - device-mapper-persistent-data
+      - lvm2
+    state: present
+- name: Adding Docker repositories for CentOS.
+  get_url:
+    url: https://download.docker.com/linux/centos/docker-ce.repo
+    dest: /etc/yum.repos.d/docker-ce.repo
+- name: Installing Docker-CE, Docker-CLI and conatinerd.
+  yum:
+    name:
+      - docker-ce
+      - docker-ce-cli
+      - containerd.io
+    state: present
+  notify:
+    - start docker

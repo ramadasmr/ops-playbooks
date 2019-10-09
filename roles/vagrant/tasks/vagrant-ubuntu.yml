@@ -1,0 +1,6 @@
+---
+- name: Install Vagrant for Ubuntu x86_64
+  apt:
+    deb: https://releases.hashicorp.com/vagrant/{{ version }}/vagrant_{{ version }}_x86_64.deb
+    state: present
+  when: ansible_distribution == "Ubuntu" and ansible_machine == "x86_64"

@@ -1,0 +1,5 @@
+---
+- name: start kubelet
+  service: name=kubelet state=started
+- name: hold kubernetes
+  command: apt-mark hold kubelet kubeadm kubectl

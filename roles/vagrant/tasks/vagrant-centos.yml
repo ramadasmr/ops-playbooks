@@ -1,0 +1,6 @@
+---
+- name: Install Vagrant for CentOS x86_64
+  yum:
+    name: https://releases.hashicorp.com/vagrant/{{ version }}/vagrant_{{ version }}_x86_64.rpm
+    state: present
+  when: ansible_distribution == "CentOS" and ansible_machine == "x86_64"

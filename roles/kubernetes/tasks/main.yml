@@ -1,0 +1,4 @@
+---
+- name: Installing kubernetes for Ubuntu
+  import_tasks: kubernetes-ubuntu.yml
+  when: ansible_facts['distribution'] | lower == "ubuntu"

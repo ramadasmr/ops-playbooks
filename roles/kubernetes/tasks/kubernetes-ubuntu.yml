@@ -1,0 +1,25 @@
+---
+- name: Install kubernetes dependenices,apt-https via apt
+  apt:
+    name:
+      - apt-transport-https
+      - curl
+    state: present
+- name: Add official kubernetes gpg key
+  apt_key:
+    url: https://packages.cloud.google.com/apt/doc/apt-key.gpg
+    state: present
+- name: Adding Kubernetes repositories for Ubuntu
+  apt_repository:
+    repo: deb https://apt.kubernetes.io/ kubernetes-xenial main
+    state: present
+- name: Installing kubelet, kubeadm, kubectl
+  apt:
+    name:
+      - kubelet
+      - kubeadm
+      - kubectl
+    state: present
+  notify:
+    - start kubelet
+    - hold kubernetes

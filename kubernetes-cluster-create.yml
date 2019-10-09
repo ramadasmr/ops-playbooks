@@ -1,0 +1,115 @@
+- hosts: all
+  become: true
+  tasks:
+    - name: Check if Kubernetes already initialized or not
+      stat:
+        path: /etc/kubernetes/admin.conf
+      register: kube_init_status
+    - name: Create kubernetes cluster -> initialize master node
+      shell: kubeadm init --apiserver-advertise-address={{ ansible_default_ipv4.address }} --pod-network-cidr=10.244.0.0/16
+      when: ( kube_init_status.stat.exists == False ) and ( 'master-01' in "{{ ansible_hostname }}" )
+      run_once: true
+    - name: Create kubernetes cluster -> getting join command
+      shell: kubeadm token create --print-join-command
+      register: kube_init_command_output
+      when: ( 'master-01' in "{{ ansible_hostname }}" )
+    - name: Setting kubeadm join token globally
+      set_fact:
+        kube_join_command: "{{ kube_init_command_output.stdout_lines | last }} "
+      delegate_to: "{{ item }}"
+      delegate_facts: True
+      loop: "{{ groups['allvms'] }}"
+      when: kube_init_command_output.stdout_lines is defined
+      run_once: true
+    - name: Create kubernetes cluster -> join worker nodes
+      shell: "{{ kube_join_command }}"
+      when: ( 'worker' in "{{ ansible_hostname }}" )
+    - name: Setup kubernetes cluster -> Creating /opt/mec-kubernetes
+      file:
+        path: /opt/mec-kubernetes
+        state: directory
+        mode: '0755'
+      when: ( 'master-01' in "{{ ansible_hostname }}" )
+    - name: Setup kubernetes cluster -> Download and Prepare yml files
+      unarchive:
+        src: k8s-cluster-files.tar.gz
+        dest: /opt/mec-kubernetes
+        remote_src: no
+      when: ( 'master-01' in "{{ ansible_hostname }}" )
+    - name: Setup kubernetes cluster -> Adding KUBECONFIG environment variable
+      lineinfile:
+        path: /root/.profile
+        regexp: '^export KUBECONFIG=/etc/kubernetes/admin.conf$'
+        line: export KUBECONFIG=/etc/kubernetes/admin.conf
+        owner: root
+        group: root
+        mode: '0644'
+      when: ( 'master-01' in "{{ ansible_hostname }}" )
+    - name: Setup kubernetes cluster -> setup network using flannel cni
+      shell: kubectl create -f networking/kube-flannel.yml
+      environment:
+        KUBECONFIG: /etc/kubernetes/admin.conf
+      args:
+        chdir: /opt/mec-kubernetes/
+      when: ( 'master-01' in "{{ ansible_hostname }}" )
+      run_once: true
+    - name: Create kubernetes cluster -> setup loadbalancer
+      shell: kubectl create -f "{{ item }}"
+      environment:
+        KUBECONFIG: /etc/kubernetes/admin.conf
+      args:
+        chdir: /opt/mec-kubernetes/
+      with_items:
+        - loadbalancer/metallb.yml
+        - loadbalancer/addresspool-config.yml
+      when: ( 'master-01' in "{{ ansible_hostname }}" )
+      run_once: true
+    - name: Create kubernetes cluster -> setup nfs storage prerequisites
+      shell: kubectl label node $(kubectl get nodes | grep master-01 | awk -F '{print $1}') nfsnode=yes
+      environment:
+        KUBECONFIG: /etc/kubernetes/admin.conf
+      when: ( 'master-01' in "{{ ansible_hostname }}" )
+      run_once: true
+    - name: Create kubernetes cluster -> setup nfs storage
+      shell: kubectl create -f "{{ item }}"
+      environment:
+        KUBECONFIG: /etc/kubernetes/admin.conf
+      args:
+        chdir: /opt/mec-kubernetes/
+      with_items:
+        - storage/nfs-internal/deployment.yaml 
+        - storage/nfs-internal/rbac.yaml
+        - storage/nfs-internal/class.yaml
+      when: ( 'master-01' in "{{ ansible_hostname }}" )
+      run_once: true
+    - name: Create kubernetes cluster -> setup metrics-server
+      shell: kubectl create -f addons/metrics-server/deploy/1.8+/
+      environment:
+        KUBECONFIG: /etc/kubernetes/admin.conf
+      args:
+        chdir: /opt/mec-kubernetes/
+      when: ( 'master-01' in "{{ ansible_hostname }}" )
+      run_once: true
+    - name: Create kubernetes cluster -> setup kubernetes-dashboard
+      shell: kubectl create -f "{{ item }}"
+      environment:
+        KUBECONFIG: /etc/kubernetes/admin.conf
+      args:
+        chdir: /opt/mec-kubernetes/
+      with_items:
+        - addons/dashboard/kubernetes-dashboard.yml
+        - addons/dashboard/dashboard-adminuser.yaml
+        - addons/dashboard/cluster-role-binding.yaml
+      when: ( 'master-01' in "{{ ansible_hostname }}" )
+      run_once: true
+    - name: Create kubernetes cluster -> setup helm
+      shell: "{{ item }}"
+      environment:
+        KUBECONFIG: /etc/kubernetes/admin.conf
+      args:
+        chdir: /opt/mec-kubernetes/
+      with_items:
+        - cp addons/helm/helm-v2.14.3-linux-amd64/helm /usr/bin/
+        - /bin/bash addons/helm/helm-v2.14.3-linux-amd64/install-helm.sh
+      when: ( 'master-01' in "{{ ansible_hostname }}" )
+      run_once: true

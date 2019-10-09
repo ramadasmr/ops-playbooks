@@ -1,0 +1,10 @@
+- hosts: all
+  become: true
+  tasks:
+    - name: Ensure that /etc/hosts has hostname entry.
+      lineinfile:
+        path: /etc/hosts
+        regex: "{{ ansible_default_ipv4.address }}"
+        line: "{{ ansible_default_ipv4.address }} {{ ansible_hostname }}"
+        state: present
+        backup: yes

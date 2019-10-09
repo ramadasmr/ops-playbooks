@@ -1,0 +1,7 @@
+---
+- name: Installing Vagrant for Ubuntu
+  import_tasks: vagrant-ubuntu.yml
+  when: ansible_facts['distribution'] == "Ubuntu"
+- name: Installing Vagrant for CentOS
+  import_tasks: vagrant-centos.yml
+  when: ansible_facts['distribution'] == "CentOS"
